@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StatCalc — Statistics Calculator</title>
+<style>
+  :root{
+    --bg:#0f172a; --panel:#1e293b; --panel2:#334155; --ink:#e2e8f0;
+    --muted:#94a3b8; --accent:#38bdf8; --accent2:#22c55e; --line:#475569;
+    --warn:#f87171;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); line-height:1.45;
+  }
+  header{padding:18px 20px; background:linear-gradient(135deg,#0ea5e9,#2563eb); color:#fff}
+  header h1{margin:0; font-size:1.4rem}
+  header p{margin:4px 0 0; opacity:.9; font-size:.85rem}
+  nav{display:flex; flex-wrap:wrap; gap:4px; background:var(--panel); padding:6px; position:sticky; top:0; z-index:5; border-bottom:1px solid var(--line)}
+  nav button{
+    flex:1 1 auto; min-width:120px; background:transparent; color:var(--muted);
+    border:0; padding:11px 10px; font-size:.9rem; cursor:pointer; border-radius:8px; font-weight:600;
+  }
+  nav button.active{background:var(--accent); color:#04263a}
+  nav button:hover:not(.active){background:var(--panel2); color:var(--ink)}
+  main{max-width:980px; margin:0 auto; padding:18px}
+  .tab{display:none}
+  .tab.active{display:block}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:16px}
+  h2{margin:.1rem 0 .8rem; font-size:1.1rem; color:var(--accent)}
+  h3{margin:1rem 0 .4rem; font-size:.95rem; color:var(--accent2)}
+  label{display:block; font-size:.8rem; color:var(--muted); margin:8px 0 3px}
+  textarea, input, select{
+    width:100%; background:#0b1220; color:var(--ink); border:1px solid var(--line);
+    border-radius:8px; padding:9px 10px; font-size:.95rem; font-family:inherit;
+  }
+  textarea{min-height:90px; resize:vertical; font-family:ui-monospace,Menlo,Consolas,monospace}
+  .row{display:flex; gap:12px; flex-wrap:wrap}
+  .row > div{flex:1 1 140px}
+  button.go{
+    background:var(--accent2); color:#052e16; border:0; padding:11px 18px; font-size:.95rem;
+    font-weight:700; border-radius:9px; cursor:pointer; margin-top:12px;
+  }
+  button.go:hover{filter:brightness(1.08)}
+  button.ghost{background:var(--panel2); color:var(--ink)}
+  .results{margin-top:14px}
+  table.stats{width:100%; border-collapse:collapse; font-size:.9rem}
+  table.stats td{padding:6px 10px; border-bottom:1px solid var(--line)}
+  table.stats td:first-child{color:var(--muted)}
+  table.stats td:last-child{text-align:right; font-variant-numeric:tabular-nums; font-weight:600}
+  .pill{display:inline-block; background:var(--panel2); padding:2px 8px; border-radius:20px; font-size:.72rem; color:var(--muted); margin-left:6px}
+  canvas{width:100%; height:auto; background:#0b1220; border:1px solid var(--line); border-radius:10px; margin-top:10px}
+  .note{font-size:.78rem; color:var(--muted); margin-top:8px}
+  .err{color:var(--warn); font-weight:600; margin-top:10px}
+  .verdict{background:#0b1220; border-left:4px solid var(--accent2); padding:10px 12px; border-radius:6px; margin-top:12px; font-size:.92rem}
+  .verdict.reject{border-left-color:var(--warn)}
+  .seg{display:flex; gap:6px; margin:6px 0}
+  .seg label{display:flex; align-items:center; gap:5px; margin:0; color:var(--ink); font-size:.85rem; background:var(--panel2); padding:7px 10px; border-radius:8px; cursor:pointer}
+  .seg input{width:auto}
+  .hidden{display:none}
+  code{background:#0b1220; padding:1px 5px; border-radius:4px; font-size:.85em}
+</style>
+</head>
+<body>
+<header>
+  <h1>StatCalc</h1>
+  <p>A statistics calculator for class — descriptive stats, regression, distributions, confidence intervals &amp; tests. Works offline.</p>
+</header>
+
+<nav>
+  <button class="active" data-tab="desc">Descriptive</button>
+  <button data-tab="reg">Regression</button>
+  <button data-tab="dist">Distributions</button>
+  <button data-tab="inf">Intervals &amp; Tests</button>
+</nav>
+
+<main>
+
+<!-- ============ DESCRIPTIVE ============ -->
+<section class="tab active" id="desc">
+  <div class="card">
+    <h2>Descriptive Statistics</h2>
+    <label>Enter your data (separate numbers with commas, spaces, or new lines)</label>
+    <textarea id="descData" placeholder="e.g.  12, 15, 9, 22, 18, 14, 17, 11"></textarea>
+    <button class="go" onclick="runDesc()">Calculate</button>
+    <button class="go ghost" onclick="document.getElementById('descData').value='';document.getElementById('descOut').innerHTML='';">Clear</button>
+    <div class="results" id="descOut"></div>
+  </div>
+</section>
+
+<!-- ============ REGRESSION ============ -->
+<section class="tab" id="reg">
+  <div class="card">
+    <h2>Linear Regression &amp; Correlation</h2>
+    <p class="note">Enter paired (x, y) values. Each row should have one x and one y, separated by a comma, space, or tab.</p>
+    <div class="row">
+      <div>
+        <label>x values</label>
+        <textarea id="regX" placeholder="1&#10;2&#10;3&#10;4&#10;5"></textarea>
+      </div>
+      <div>
+        <label>y values</label>
+        <textarea id="regY" placeholder="2.1&#10;3.9&#10;6.2&#10;7.8&#10;10.1"></textarea>
+      </div>
+    </div>
+    <button class="go" onclick="runReg()">Calculate</button>
+    <div class="results" id="regOut"></div>
+    <canvas id="scatter" width="900" height="500" class="hidden"></canvas>
+  </div>
+</section>
+
+<!-- ============ DISTRIBUTIONS ============ -->
+<section class="tab" id="dist">
+  <div class="card">
+    <h2>Probability Distributions</h2>
+    <label>Distribution</label>
+    <select id="distType" onchange="distUI()">
+      <option value="normal">Normal</option>
+      <option value="t">Student t</option>
+      <option value="binom">Binomial</option>
+    </select>
+
+    <!-- NORMAL -->
+    <div id="dist-normal">
+      <div class="row">
+        <div><label>Mean (μ)</label><input id="nMu" value="0"></div>
+        <div><label>Std dev (σ)</label><input id="nSig" value="1"></div>
+      </div>
+      <label>What do you want?</label>
+      <select id="nMode">
+        <option value="lt">P(X &lt; x)  — area to the left</option>
+        <option value="gt">P(X &gt; x)  — area to the right</option>
+        <option value="between">P(a &lt; X &lt; b)  — area between</option>
+        <option value="inv">Inverse: find x for a given left-area (percentile)</option>
+      </select>
+      <div class="row">
+        <div id="nXwrap"><label>x</label><input id="nX" value="1"></div>
+        <div id="nBwrap" class="hidden"><label>b (upper)</label><input id="nB" value="1.5"></div>
+        <div id="nPwrap" class="hidden"><label>Left area / percentile (0–1)</label><input id="nP" value="0.95"></div>
+      </div>
+      <p class="note" id="nXhint"></p>
+    </div>
+
+    <!-- T -->
+    <div id="dist-t" class="hidden">
+      <div class="row">
+        <div><label>Degrees of freedom (df)</label><input id="tDf" value="10"></div>
+      </div>
+      <label>What do you want?</label>
+      <select id="tMode">
+        <option value="lt">P(T &lt; t) — area to the left</option>
+        <option value="gt">P(T &gt; t) — area to the right</option>
+        <option value="two">2-tailed: P(|T| &gt; t)</option>
+        <option value="inv">Inverse: find t for a given left-area</option>
+      </select>
+      <div class="row">
+        <div id="tTwrap"><label>t</label><input id="tT" value="2.0"></div>
+        <div id="tPwrap" class="hidden"><label>Left area (0–1)</label><input id="tP" value="0.975"></div>
+      </div>
+    </div>
+
+    <!-- BINOMIAL -->
+    <div id="dist-binom" class="hidden">
+      <div class="row">
+        <div><label>Trials (n)</label><input id="bN" value="10"></div>
+        <div><label>Success prob. (p)</label><input id="bP" value="0.5"></div>
+      </div>
+      <label>What do you want?</label>
+      <select id="bMode">
+        <option value="eq">P(X = k)</option>
+        <option value="le">P(X ≤ k)</option>
+        <option value="lt">P(X &lt; k)</option>
+        <option value="ge">P(X ≥ k)</option>
+        <option value="gt">P(X &gt; k)</option>
+      </select>
+      <div class="row"><div><label>k</label><input id="bK" value="5"></div></div>
+    </div>
+
+    <button class="go" onclick="runDist()">Calculate</button>
+    <div class="results" id="distOut"></div>
+  </div>
+</section>
+
+<!-- ============ INFERENCE ============ -->
+<section class="tab" id="inf">
+  <div class="card">
+    <h2>Confidence Intervals &amp; Hypothesis Tests</h2>
+    <label>Procedure</label>
+    <select id="procType" onchange="procUI()">
+      <optgroup label="Confidence Intervals">
+        <option value="zint">Z-Interval — 1 mean, σ known</option>
+        <option value="tint">T-Interval — 1 mean, σ unknown</option>
+        <option value="1propzint">1-Proportion Z-Interval</option>
+        <option value="2samptint">2-Sample T-Interval (means)</option>
+      </optgroup>
+      <optgroup label="Hypothesis Tests">
+        <option value="ztest">Z-Test — 1 mean, σ known</option>
+        <option value="ttest">T-Test — 1 mean, σ unknown</option>
+        <option value="1propztest">1-Proportion Z-Test</option>
+        <option value="2samptest">2-Sample T-Test (means)</option>
+      </optgroup>
+    </select>
+
+    <!-- input source for single-sample mean procedures -->
+    <div id="srcWrap">
+      <label>Input method</label>
+      <div class="seg">
+        <label><input type="radio" name="src" value="stats" checked onchange="procUI()"> Summary stats</label>
+        <label><input type="radio" name="src" value="data" onchange="procUI()"> Raw data list</label>
+      </div>
+    </div>
+
+    <div id="dataWrap" class="hidden">
+      <label>Data (commas / spaces / new lines)</label>
+      <textarea id="infData" placeholder="e.g. 23, 21, 25, 22, 24, 20"></textarea>
+    </div>
+
+    <div id="fields"></div>
+
+    <button class="go" onclick="runInf()">Calculate</button>
+    <div class="results" id="infOut"></div>
+  </div>
+</section>
+
+</main>
+
+<script>
+/* ============================================================
+   NUMERIC / STATISTICS LIBRARY
+   ============================================================ */
+
+function parseNums(str){
+  if(!str) return [];
+  return str.split(/[\s,;]+/).map(s=>s.trim()).filter(s=>s.length)
+            .map(Number).filter(v=>!Number.isNaN(v));
+}
+
+function sum(a){ return a.reduce((s,x)=>s+x,0); }
+function mean(a){ return sum(a)/a.length; }
+
+function variance(a, sample=true){
+  const m=mean(a); const ss=a.reduce((s,x)=>s+(x-m)*(x-m),0);
+  return ss/(a.length-(sample?1:0));
+}
+function stdev(a, sample=true){ return Math.sqrt(variance(a,sample)); }
+
+function median(sorted){
+  const n=sorted.length;
+  if(n===0) return NaN;
+  const mid=Math.floor(n/2);
+  return n%2 ? sorted[mid] : (sorted[mid-1]+sorted[mid])/2;
+}
+
+// Quartiles using the "median of halves" method (TI-84 / Moore & McCabe).
+function quartiles(sorted){
+  const n=sorted.length, mid=Math.floor(n/2);
+  let lower, upper;
+  if(n%2){ lower=sorted.slice(0,mid); upper=sorted.slice(mid+1); }
+  else   { lower=sorted.slice(0,mid); upper=sorted.slice(mid); }
+  return {q1:median(lower), q2:median(sorted), q3:median(upper)};
+}
+
+function modes(a){
+  const map=new Map();
+  a.forEach(x=>map.set(x,(map.get(x)||0)+1));
+  let max=0; map.forEach(c=>{ if(c>max)max=c; });
+  if(max<=1) return {list:[], count:max};
+  const list=[...map.entries()].filter(([,c])=>c===max).map(([v])=>v).sort((x,y)=>x-y);
+  return {list, count:max};
+}
+
+/* ---- error function & normal ---- */
+function erf(x){
+  const s=x<0?-1:1; x=Math.abs(x);
+  const t=1/(1+0.3275911*x);
+  const y=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x);
+  return s*y;
+}
+function normalCDF(x,mu=0,sig=1){ return 0.5*(1+erf((x-mu)/(sig*Math.SQRT2))); }
+function normalPDF(x,mu=0,sig=1){ return Math.exp(-0.5*((x-mu)/sig)**2)/(sig*Math.sqrt(2*Math.PI)); }
+
+function invNorm(p,mu=0,sig=1){
+  if(p<=0) return -Infinity; if(p>=1) return Infinity;
+  const a=[-3.969683028665376e+01,2.209460984245205e+02,-2.759285104469687e+02,1.383577518672690e+02,-3.066479806614716e+01,2.506628277459239e+00];
+  const b=[-5.447609879822406e+01,1.615858368580409e+02,-1.556989798598866e+02,6.680131188771972e+01,-1.328068155288572e+01];
+  const c=[-7.784894002430293e-03,-3.223964580411365e-01,-2.400758277161838e+00,-2.549732539343734e+00,4.374664141464968e+00,2.938163982698783e+00];
+  const d=[7.784695709041462e-03,3.224671290700398e-01,2.445134137142996e+00,3.754408661907416e+00];
+  const plow=0.02425, phigh=1-plow; let q,r,x;
+  if(p<plow){ q=Math.sqrt(-2*Math.log(p)); x=(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5])/((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1); }
+  else if(p<=phigh){ q=p-0.5; r=q*q; x=(((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q/(((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1); }
+  else { q=Math.sqrt(-2*Math.log(1-p)); x=-(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5])/((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1); }
+  return mu+sig*x;
+}
+
+/* ---- gamma / incomplete beta (for t and binomial) ---- */
+function logGamma(x){
+  const cof=[76.18009172947146,-86.50532032941677,24.01409824083091,-1.231739572450155,0.1208650973866179e-2,-0.5395239384953e-5];
+  let y=x, tmp=x+5.5; tmp-=(x+0.5)*Math.log(tmp);
+  let ser=1.000000000190015;
+  for(let j=0;j<6;j++){ y++; ser+=cof[j]/y; }
+  return -tmp+Math.log(2.5066282746310005*ser/x);
+}
+function betacf(a,b,x){
+  const MAXIT=300, EPS=3e-12, FPMIN=1e-300;
+  let qab=a+b, qap=a+1, qam=a-1, c=1, d=1-qab*x/qap;
+  if(Math.abs(d)<FPMIN)d=FPMIN; d=1/d; let h=d;
+  for(let m=1;m<=MAXIT;m++){
+    const m2=2*m;
+    let aa=m*(b-m)*x/((qam+m2)*(a+m2));
+    d=1+aa*d; if(Math.abs(d)<FPMIN)d=FPMIN;
+    c=1+aa/c; if(Math.abs(c)<FPMIN)c=FPMIN; d=1/d; h*=d*c;
+    aa=-(a+m)*(qab+m)*x/((a+m2)*(qap+m2));
+    d=1+aa*d; if(Math.abs(d)<FPMIN)d=FPMIN;
+    c=1+aa/c; if(Math.abs(c)<FPMIN)c=FPMIN; d=1/d;
+    const del=d*c; h*=del; if(Math.abs(del-1)<EPS) break;
+  }
+  return h;
+}
+function betai(a,b,x){
+  if(x<=0) return 0; if(x>=1) return 1;
+  const bt=Math.exp(logGamma(a+b)-logGamma(a)-logGamma(b)+a*Math.log(x)+b*Math.log(1-x));
+  return x<(a+1)/(a+b+2) ? bt*betacf(a,b,x)/a : 1-bt*betacf(b,a,1-x)/b;
+}
+
+/* ---- Student t ---- */
+function tCDF(t,df){ const x=df/(df+t*t); const ib=0.5*betai(df/2,0.5,x); return t>0?1-ib:ib; }
+function tPDF(t,df){ return Math.exp(logGamma((df+1)/2)-logGamma(df/2))/Math.sqrt(df*Math.PI)*Math.pow(1+t*t/df,-(df+1)/2); }
+function invT(p,df){
+  if(p<=0) return -Infinity; if(p>=1) return Infinity;
+  let lo=-1e4, hi=1e4;
+  for(let i=0;i<200;i++){ const mid=(lo+hi)/2; if(tCDF(mid,df)<p) lo=mid; else hi=mid; }
+  return (lo+hi)/2;
+}
+
+/* ---- Binomial ---- */
+function logChoose(n,k){ return logGamma(n+1)-logGamma(k+1)-logGamma(n-k+1); }
+function binomPMF(k,n,p){
+  if(k<0||k>n) return 0;
+  if(p===0) return k===0?1:0;
+  if(p===1) return k===n?1:0;
+  return Math.exp(logChoose(n,k)+k*Math.log(p)+(n-k)*Math.log(1-p));
+}
+function binomCDF(k,n,p){ let s=0; for(let i=0;i<=Math.floor(k);i++) s+=binomPMF(i,n,p); return Math.min(1,s); }
+
+/* ---- formatting ---- */
+function fmt(x,dp=6){
+  if(x===null||x===undefined||Number.isNaN(x)) return '—';
+  if(!isFinite(x)) return x>0?'∞':'-∞';
+  if(x===0) return '0';
+  const a=Math.abs(x);
+  if(a>=1e7||a<1e-6) return x.toExponential(4);
+  return String(Number(x.toPrecision(dp)));
+}
+function fmtP(p){
+  if(p<1e-4 && p>0) return p.toExponential(3);
+  return String(Number(p.toPrecision(4)));
+}
+
+/* ============================================================
+   TAB NAVIGATION
+   ============================================================ */
+document.querySelectorAll('nav button').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    document.getElementById(b.dataset.tab).classList.add('active');
+  };
+});
+
+/* ============================================================
+   DESCRIPTIVE
+   ============================================================ */
+function runDesc(){
+  const out=document.getElementById('descOut');
+  const a=parseNums(document.getElementById('descData').value);
+  if(a.length===0){ out.innerHTML='<div class="err">Please enter some numbers.</div>'; return; }
+  const sorted=[...a].sort((x,y)=>x-y);
+  const n=a.length, m=mean(a);
+  const {q1,q2,q3}=quartiles(sorted);
+  const md=modes(a);
+  const sVar=variance(a,true), pVar=variance(a,false);
+  const rows=[
+    ['n (count)', n],
+    ['Sum (Σx)', fmt(sum(a))],
+    ['Mean (x̄)', fmt(m)],
+    ['Median', fmt(q2)],
+    ['Mode', md.list.length? md.list.map(v=>fmt(v)).join(', ')+`  (×${md.count})` : 'none'],
+    ['Minimum', fmt(sorted[0])],
+    ['Q1 (25%)', fmt(q1)],
+    ['Q3 (75%)', fmt(q3)],
+    ['Maximum', fmt(sorted[n-1])],
+    ['Range', fmt(sorted[n-1]-sorted[0])],
+    ['IQR (Q3−Q1)', fmt(q3-q1)],
+    ['Sample variance (s²)', n>1?fmt(sVar):'—'],
+    ['Sample std dev (s)', n>1?fmt(Math.sqrt(sVar)):'—'],
+    ['Population variance (σ²)', fmt(pVar)],
+    ['Population std dev (σ)', fmt(Math.sqrt(pVar))],
+  ];
+  let html='<table class="stats"><tbody>';
+  rows.forEach(([k,v])=>html+=`<tr><td>${k}</td><td>${v}</td></tr>`);
+  html+='</tbody></table>';
+  html+=`<p class="note">Five-number summary: <b>${fmt(sorted[0])}</b>, <b>${fmt(q1)}</b>, <b>${fmt(q2)}</b>, <b>${fmt(q3)}</b>, <b>${fmt(sorted[n-1])}</b>. Quartiles use the median-of-halves method (matches TI-84).</p>`;
+  out.innerHTML=html;
+  drawHistogram(a);
+}
+
+function drawHistogram(a){
+  let c=document.getElementById('histCanvas');
+  if(!c){ c=document.createElement('canvas'); c.id='histCanvas'; c.width=900; c.height=420; document.getElementById('descOut').appendChild(c); }
+  const ctx=c.getContext('2d'); const W=c.width,H=c.height;
+  ctx.clearRect(0,0,W,H);
+  const min=Math.min(...a), max=Math.max(...a);
+  const k=Math.max(1,Math.ceil(Math.sqrt(a.length)));
+  const bw=(max-min)/k || 1;
+  const bins=new Array(k).fill(0);
+  a.forEach(x=>{ let i=Math.floor((x-min)/bw); if(i>=k)i=k-1; if(i<0)i=0; bins[i]++; });
+  const maxC=Math.max(...bins);
+  const padL=46,padB=42,padT=18,padR=14;
+  const plotW=W-padL-padR, plotH=H-padT-padB;
+  ctx.strokeStyle='#475569'; ctx.fillStyle='#94a3b8'; ctx.font='13px sans-serif';
+  ctx.beginPath(); ctx.moveTo(padL,padT); ctx.lineTo(padL,padT+plotH); ctx.lineTo(padL+plotW,padT+plotH); ctx.stroke();
+  for(let g=0;g<=maxC;g+=Math.max(1,Math.ceil(maxC/5))){
+    const y=padT+plotH-(g/maxC)*plotH;
+    ctx.fillText(g,8,y+4);
+    ctx.strokeStyle='#1e293b'; ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(padL+plotW,y); ctx.stroke();
+  }
+  for(let i=0;i<k;i++){
+    const x=padL+(i/k)*plotW, w=plotW/k-2;
+    const h=(bins[i]/maxC)*plotH;
+    ctx.fillStyle='#38bdf8'; ctx.fillRect(x+1,padT+plotH-h,w,h);
+  }
+  ctx.fillStyle='#94a3b8'; ctx.textAlign='center';
+  for(let i=0;i<=k;i++){ const x=padL+(i/k)*plotW; ctx.fillText(fmt(min+i*bw,4),x,padT+plotH+18); }
+  ctx.textAlign='left'; ctx.fillStyle='#e2e8f0'; ctx.fillText('Histogram (frequency)',padL,12);
+}
+
+/* ============================================================
+   REGRESSION
+   ============================================================ */
+function runReg(){
+  const out=document.getElementById('regOut');
+  const xs=parseNums(document.getElementById('regX').value);
+  const ys=parseNums(document.getElementById('regY').value);
+  if(xs.length===0||ys.length===0){ out.innerHTML='<div class="err">Enter both x and y values.</div>'; document.getElementById('scatter').classList.add('hidden'); return; }
+  if(xs.length!==ys.length){ out.innerHTML=`<div class="err">x has ${xs.length} values but y has ${ys.length}. They must match.</div>`; document.getElementById('scatter').classList.add('hidden'); return; }
+  const n=xs.length;
+  if(n<2){ out.innerHTML='<div class="err">Need at least 2 points.</div>'; return; }
+  const mx=mean(xs), my=mean(ys);
+  let sxx=0,syy=0,sxy=0;
+  for(let i=0;i<n;i++){ sxx+=(xs[i]-mx)**2; syy+=(ys[i]-my)**2; sxy+=(xs[i]-mx)*(ys[i]-my); }
+  const b=sxy/sxx, a0=my-b*mx;
+  const r=sxy/Math.sqrt(sxx*syy), r2=r*r;
+  // residual std error
+  let sse=0; for(let i=0;i<n;i++){ const e=ys[i]-(a0+b*xs[i]); sse+=e*e; }
+  const se=n>2?Math.sqrt(sse/(n-2)):NaN;
+  const sign=a0>=0?'+':'−';
+  const rows=[
+    ['n (pairs)', n],
+    ['Slope (b)', fmt(b)],
+    ['Intercept (a)', fmt(a0)],
+    ['Equation', `ŷ = ${fmt(b)}·x ${sign} ${fmt(Math.abs(a0))}`],
+    ['Correlation (r)', fmt(r)],
+    ['r² (coeff. of determination)', fmt(r2)],
+    ['Mean of x', fmt(mx)],
+    ['Mean of y', fmt(my)],
+    ['Std error of estimate (s)', fmt(se)],
+  ];
+  let html='<table class="stats"><tbody>';
+  rows.forEach(([k,v])=>html+=`<tr><td>${k}</td><td>${v}</td></tr>`);
+  html+='</tbody></table>';
+  html+=`<p class="note">r² means about <b>${(r2*100).toFixed(1)}%</b> of the variation in y is explained by the linear relationship with x.</p>`;
+  out.innerHTML=html;
+  drawScatter(xs,ys,a0,b);
+}
+function drawScatter(xs,ys,a0,b){
+  const c=document.getElementById('scatter'); c.classList.remove('hidden');
+  const ctx=c.getContext('2d'); const W=c.width,H=c.height; ctx.clearRect(0,0,W,H);
+  const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
+  const padL=52,padB=42,padT=18,padR=18, pw=W-padL-padR, ph=H-padT-padB;
+  const rx=maxX-minX||1, ry=maxY-minY||1;
+  const px=x=>padL+((x-minX)/rx)*pw;
+  const py=y=>padT+ph-((y-minY)/ry)*ph;
+  ctx.strokeStyle='#475569'; ctx.beginPath(); ctx.moveTo(padL,padT); ctx.lineTo(padL,padT+ph); ctx.lineTo(padL+pw,padT+ph); ctx.stroke();
+  ctx.fillStyle='#94a3b8'; ctx.font='12px sans-serif';
+  for(let i=0;i<=5;i++){
+    const gx=minX+(i/5)*rx, gy=minY+(i/5)*ry;
+    ctx.textAlign='center'; ctx.fillText(fmt(gx,4),px(gx),padT+ph+16);
+    ctx.textAlign='right';  ctx.fillText(fmt(gy,4),padL-6,py(gy)+4);
+  }
+  // regression line
+  ctx.strokeStyle='#22c55e'; ctx.lineWidth=2; ctx.beginPath();
+  ctx.moveTo(px(minX),py(a0+b*minX)); ctx.lineTo(px(maxX),py(a0+b*maxX)); ctx.stroke(); ctx.lineWidth=1;
+  // points
+  ctx.fillStyle='#38bdf8';
+  for(let i=0;i<xs.length;i++){ ctx.beginPath(); ctx.arc(px(xs[i]),py(ys[i]),4,0,2*Math.PI); ctx.fill(); }
+  ctx.fillStyle='#e2e8f0'; ctx.textAlign='left'; ctx.fillText('Scatter plot with regression line',padL,12);
+}
+
+/* ============================================================
+   DISTRIBUTIONS
+   ============================================================ */
+function distUI(){
+  const t=document.getElementById('distType').value;
+  ['normal','t','binom'].forEach(d=>document.getElementById('dist-'+d).classList.toggle('hidden',d!==t));
+  normalModeUI(); tModeUI();
+}
+function normalModeUI(){
+  const m=document.getElementById('nMode').value;
+  document.getElementById('nXwrap').classList.toggle('hidden', m==='inv');
+  document.getElementById('nBwrap').classList.toggle('hidden', m!=='between');
+  document.getElementById('nPwrap').classList.toggle('hidden', m!=='inv');
+  const hint={lt:'',gt:'',between:'Enter the lower bound as x and the upper bound as b.',inv:''}[m];
+  document.getElementById('nXhint').textContent=hint||'';
+}
+function tModeUI(){
+  const m=document.getElementById('tMode').value;
+  document.getElementById('tTwrap').classList.toggle('hidden', m==='inv');
+  document.getElementById('tPwrap').classList.toggle('hidden', m!=='inv');
+}
+document.getElementById('nMode').addEventListener('change',normalModeUI);
+document.getElementById('tMode').addEventListener('change',tModeUI);
+
+function runDist(){
+  const out=document.getElementById('distOut'); out.innerHTML='';
+  const type=document.getElementById('distType').value;
+  try{
+    if(type==='normal'){
+      const mu=+document.getElementById('nMu').value, sig=+document.getElementById('nSig').value;
+      if(sig<=0) throw 'σ must be positive.';
+      const mode=document.getElementById('nMode').value;
+      if(mode==='inv'){
+        const p=+document.getElementById('nP').value;
+        if(p<=0||p>=1) throw 'Area must be between 0 and 1.';
+        const x=invNorm(p,mu,sig), z=invNorm(p);
+        out.innerHTML=tbl([['Left area',fmtP(p)],['x (value)',fmt(x)],['z-score',fmt(z)]]);
+      }else{
+        const x=+document.getElementById('nX').value;
+        const z=(x-mu)/sig;
+        if(mode==='lt') out.innerHTML=tbl([['P(X < '+fmt(x)+')',fmtP(normalCDF(x,mu,sig))],['z-score',fmt(z)]]);
+        else if(mode==='gt') out.innerHTML=tbl([['P(X > '+fmt(x)+')',fmtP(1-normalCDF(x,mu,sig))],['z-score',fmt(z)]]);
+        else{
+          const bb=+document.getElementById('nB').value;
+          const lo=Math.min(x,bb),hi=Math.max(x,bb);
+          out.innerHTML=tbl([['P('+fmt(lo)+' < X < '+fmt(hi)+')',fmtP(normalCDF(hi,mu,sig)-normalCDF(lo,mu,sig))]]);
+        }
+      }
+    }else if(type==='t'){
+      const df=+document.getElementById('tDf').value;
+      if(df<=0) throw 'df must be positive.';
+      const mode=document.getElementById('tMode').value;
+      if(mode==='inv'){
+        const p=+document.getElementById('tP').value; if(p<=0||p>=1) throw 'Area must be between 0 and 1.';
+        out.innerHTML=tbl([['Left area',fmtP(p)],['t value',fmt(invT(p,df))]]);
+      }else{
+        const t=+document.getElementById('tT').value;
+        if(mode==='lt') out.innerHTML=tbl([['P(T < '+fmt(t)+')',fmtP(tCDF(t,df))]]);
+        else if(mode==='gt') out.innerHTML=tbl([['P(T > '+fmt(t)+')',fmtP(1-tCDF(t,df))]]);
+        else out.innerHTML=tbl([['P(|T| > '+fmt(Math.abs(t))+')',fmtP(2*(1-tCDF(Math.abs(t),df)))]]);
+      }
+    }else{
+      const n=+document.getElementById('bN').value, p=+document.getElementById('bP').value, k=+document.getElementById('bK').value;
+      if(n<0||!Number.isInteger(n)) throw 'n must be a non-negative whole number.';
+      if(p<0||p>1) throw 'p must be between 0 and 1.';
+      const mode=document.getElementById('bMode').value;
+      let res,label;
+      if(mode==='eq'){ res=binomPMF(k,n,p); label='P(X = '+k+')'; }
+      else if(mode==='le'){ res=binomCDF(k,n,p); label='P(X ≤ '+k+')'; }
+      else if(mode==='lt'){ res=binomCDF(k-1,n,p); label='P(X < '+k+')'; }
+      else if(mode==='ge'){ res=1-binomCDF(k-1,n,p); label='P(X ≥ '+k+')'; }
+      else { res=1-binomCDF(k,n,p); label='P(X > '+k+')'; }
+      out.innerHTML=tbl([[label,fmtP(res)],['Mean (np)',fmt(n*p)],['Std dev √(np(1−p))',fmt(Math.sqrt(n*p*(1-p)))]]);
+    }
+  }catch(e){ out.innerHTML='<div class="err">'+e+'</div>'; }
+}
+function tbl(rows){
+  let h='<table class="stats"><tbody>';
+  rows.forEach(([k,v])=>h+=`<tr><td>${k}</td><td>${v}</td></tr>`);
+  return h+'</tbody></table>';
+}
+
+/* ============================================================
+   INFERENCE (CI & TESTS)
+   ============================================================ */
+function field(id,label,val,extra=''){ return `<div><label>${label}</label><input id="${id}" value="${val}" ${extra}></div>`; }
+
+const PROC = {
+  zint:    {mean1:true, tail:false, ci:true,  fields:['sigma','xbar','n','C']},
+  tint:    {mean1:true, tail:false, ci:true,  fields:['xbar','s','n','C']},
+  '1propzint':{mean1:false,tail:false,ci:true, fields:['x','n','C']},
+  '2samptint':{mean1:false,tail:false,ci:true, fields:['xbar1','s1','n1','xbar2','s2','n2','C','pooled']},
+  ztest:   {mean1:true, tail:true,  ci:false, fields:['mu0','sigma','xbar','n']},
+  ttest:   {mean1:true, tail:true,  ci:false, fields:['mu0','xbar','s','n']},
+  '1propztest':{mean1:false,tail:true,ci:false,fields:['p0','x','n']},
+  '2samptest':{mean1:false,tail:true,ci:false,fields:['xbar1','s1','n1','xbar2','s2','n2','pooled']},
+};
+const FLABEL = {
+  sigma:['Population σ','1'], xbar:['Sample mean x̄','0'], s:['Sample std dev s','1'],
+  n:['Sample size n','30'], C:['Confidence level (e.g. 0.95)','0.95'],
+  x:['Successes x','8'], mu0:['Hypothesized mean μ₀','0'], p0:['Hypothesized prop. p₀','0.5'],
+  xbar1:['Sample 1 mean x̄₁','0'], s1:['Sample 1 std s₁','1'], n1:['Sample 1 size n₁','30'],
+  xbar2:['Sample 2 mean x̄₂','0'], s2:['Sample 2 std s₂','1'], n2:['Sample 2 size n₂','30'],
+};
+
+function procUI(){
+  const p=document.getElementById('procType').value;
+  const cfg=PROC[p];
+  const src=document.querySelector('input[name=src]:checked').value;
+  // show data/stats source only for single-sample mean procedures
+  const allowData = cfg.mean1;
+  document.getElementById('srcWrap').classList.toggle('hidden', !allowData);
+  document.getElementById('dataWrap').classList.toggle('hidden', !(allowData && src==='data'));
+
+  let html='';
+  if(cfg.tail){
+    html+=`<label>Alternative hypothesis (tail)</label>
+      <select id="tail">
+        <option value="two">two-sided  (≠)</option>
+        <option value="lt">left-tailed (&lt;)</option>
+        <option value="gt">right-tailed (&gt;)</option>
+      </select>`;
+  }
+  let useData = allowData && src==='data';
+  html+='<div class="row">';
+  cfg.fields.forEach(f=>{
+    if(f==='pooled'){
+      html+=`<div><label>Pooled variance?</label><select id="pooled"><option value="no">No (Welch — recommended)</option><option value="yes">Yes (equal variances)</option></select></div>`;
+      return;
+    }
+    // when using raw data, hide xbar/s/n (computed automatically)
+    if(useData && (f==='xbar'||f==='s'||f==='n')) return;
+    const [lab,def]=FLABEL[f];
+    html+=field(f,lab,def);
+  });
+  html+='</div>';
+  document.getElementById('fields').innerHTML=html;
+}
+
+function runInf(){
+  const out=document.getElementById('infOut'); out.innerHTML='';
+  const proc=document.getElementById('procType').value;
+  const cfg=PROC[proc];
+  const v=id=>{ const el=document.getElementById(id); return el?+el.value:NaN; };
+  try{
+    // gather data-derived stats if needed
+    let xbar,s,nn;
+    const src = cfg.mean1 ? document.querySelector('input[name=src]:checked').value : 'stats';
+    if(cfg.mean1 && src==='data'){
+      const a=parseNums(document.getElementById('infData').value);
+      if(a.length<2) throw 'Enter at least 2 data values.';
+      xbar=mean(a); s=stdev(a,true); nn=a.length;
+    }
+
+    if(proc==='zint'){
+      const sig=v('sigma'), C=v('C'); xbar=src==='data'?xbar:v('xbar'); nn=src==='data'?nn:v('n');
+      const z=invNorm((1+C)/2), me=z*sig/Math.sqrt(nn);
+      out.innerHTML=ciBox(xbar,me,C,[['x̄',fmt(xbar)],['σ',fmt(sig)],['n',nn],['z*',fmt(z)],['Std error',fmt(sig/Math.sqrt(nn))],['Margin of error',fmt(me)]]);
+    }
+    else if(proc==='tint'){
+      const C=v('C'); xbar=src==='data'?xbar:v('xbar'); s=src==='data'?s:v('s'); nn=src==='data'?nn:v('n');
+      const df=nn-1, tc=invT((1+C)/2,df), me=tc*s/Math.sqrt(nn);
+      out.innerHTML=ciBox(xbar,me,C,[['x̄',fmt(xbar)],['s',fmt(s)],['n',nn],['df',df],['t*',fmt(tc)],['Std error',fmt(s/Math.sqrt(nn))],['Margin of error',fmt(me)]]);
+    }
+    else if(proc==='1propzint'){
+      const x=v('x'), n=v('n'), C=v('C'); const ph=x/n;
+      const z=invNorm((1+C)/2), se=Math.sqrt(ph*(1-ph)/n), me=z*se;
+      out.innerHTML=ciBox(ph,me,C,[['p̂',fmt(ph)],['x',x],['n',n],['z*',fmt(z)],['Std error',fmt(se)],['Margin of error',fmt(me)]]);
+    }
+    else if(proc==='2samptint'){
+      const x1=v('xbar1'),s1=v('s1'),n1=v('n1'),x2=v('xbar2'),s2=v('s2'),n2=v('n2'),C=v('C');
+      const pooled=document.getElementById('pooled').value==='yes';
+      const r=twoSampT(x1,s1,n1,x2,s2,n2,pooled);
+      const tc=invT((1+C)/2,r.df), me=tc*r.se, diff=x1-x2;
+      out.innerHTML=ciBox(diff,me,C,[['x̄₁−x̄₂',fmt(diff)],['df',fmt(r.df)],['t*',fmt(tc)],['Std error',fmt(r.se)],['Margin of error',fmt(me)]],'μ₁−μ₂');
+    }
+    else if(proc==='ztest'){
+      const mu0=v('mu0'), sig=v('sigma'), tail=document.getElementById('tail').value;
+      xbar=src==='data'?xbar:v('xbar'); nn=src==='data'?nn:v('n');
+      const se=sig/Math.sqrt(nn), z=(xbar-mu0)/se;
+      const p=pval(z,tail,(t)=>1-normalCDF(t));
+      out.innerHTML=testBox('z',z,p,tail,[['x̄',fmt(xbar)],['μ₀',fmt(mu0)],['σ',fmt(sig)],['n',nn],['Std error',fmt(se)]]);
+    }
+    else if(proc==='ttest'){
+      const mu0=v('mu0'), tail=document.getElementById('tail').value;
+      xbar=src==='data'?xbar:v('xbar'); s=src==='data'?s:v('s'); nn=src==='data'?nn:v('n');
+      const df=nn-1, se=s/Math.sqrt(nn), t=(xbar-mu0)/se;
+      const p=pval(t,tail,(x)=>1-tCDF(x,df));
+      out.innerHTML=testBox('t',t,p,tail,[['x̄',fmt(xbar)],['μ₀',fmt(mu0)],['s',fmt(s)],['n',nn],['df',df],['Std error',fmt(se)]]);
+    }
+    else if(proc==='1propztest'){
+      const p0=v('p0'), x=v('x'), n=v('n'), tail=document.getElementById('tail').value;
+      const ph=x/n, se=Math.sqrt(p0*(1-p0)/n), z=(ph-p0)/se;
+      const p=pval(z,tail,(t)=>1-normalCDF(t));
+      out.innerHTML=testBox('z',z,p,tail,[['p̂',fmt(ph)],['p₀',fmt(p0)],['x',x],['n',n],['Std error',fmt(se)]]);
+    }
+    else if(proc==='2samptest'){
+      const x1=v('xbar1'),s1=v('s1'),n1=v('n1'),x2=v('xbar2'),s2=v('s2'),n2=v('n2');
+      const tail=document.getElementById('tail').value;
+      const pooled=document.getElementById('pooled').value==='yes';
+      const r=twoSampT(x1,s1,n1,x2,s2,n2,pooled);
+      const t=(x1-x2)/r.se;
+      const p=pval(t,tail,(x)=>1-tCDF(x,r.df));
+      out.innerHTML=testBox('t',t,p,tail,[['x̄₁−x̄₂',fmt(x1-x2)],['df',fmt(r.df)],['Std error',fmt(r.se)],['pooled',pooled?'yes':'no']]);
+    }
+  }catch(e){ out.innerHTML='<div class="err">'+e+'</div>'; }
+}
+
+function twoSampT(x1,s1,n1,x2,s2,n2,pooled){
+  if(pooled){
+    const sp2=((n1-1)*s1*s1+(n2-1)*s2*s2)/(n1+n2-2);
+    const se=Math.sqrt(sp2*(1/n1+1/n2));
+    return {se, df:n1+n2-2};
+  }
+  const a=s1*s1/n1, b=s2*s2/n2, se=Math.sqrt(a+b);
+  const df=(a+b)**2/((a*a)/(n1-1)+(b*b)/(n2-1));
+  return {se, df};
+}
+function pval(stat,tail,upperTail){
+  // upperTail(x) returns P(>x) for the relevant distribution
+  if(tail==='two') return 2*upperTail(Math.abs(stat));
+  if(tail==='gt')  return upperTail(stat);
+  return 1-upperTail(stat); // left: P(< stat) = 1 - P(> stat)
+}
+function ciBox(point,me,C,rows,paramName){
+  const lo=point-me, hi=point+me;
+  let h=tbl(rows);
+  h+=`<div class="verdict"><b>${(C*100)}% Confidence Interval${paramName?' for '+paramName:''}:</b><br>
+      ( ${fmt(lo)} , ${fmt(hi)} )<br>
+      <span class="note">Estimate ${fmt(point)} ± ${fmt(me)}</span></div>`;
+  return h;
+}
+function testBox(letter,stat,p,tail,rows){
+  rows=rows.concat([[letter+' statistic',fmt(stat)],['p-value',fmtP(p)]]);
+  const tailTxt={two:'two-sided (≠)',lt:'left-tailed (<)',gt:'right-tailed (>)'}[tail];
+  let h=tbl(rows);
+  const rej05=p<0.05;
+  h+=`<div class="verdict ${rej05?'reject':''}">
+      Alternative: <b>${tailTxt}</b><br>
+      At α = 0.05: <b>${rej05?'Reject H₀':'Fail to reject H₀'}</b> &nbsp;(p = ${fmtP(p)})<br>
+      <span class="note">${rej05?'The result is statistically significant.':'Not enough evidence against H₀.'} Compare the p-value to your own α if different.</span>
+      </div>`;
+  return h;
+}
+
+/* init */
+distUI();
+procUI();
+</script>
+</body>
+</html>
